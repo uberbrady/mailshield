@@ -1,0 +1,22 @@
+{
+  "name": "mailshield",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/uberbrady/mailshield.git"
+  },
+  "author": "Brady Wetherington",
+  "license": "AGPL-3",
+  "bugs": {
+    "url": "https://github.com/uberbrady/mailshield/issues"
+  },
+  "homepage": "https://github.com/uberbrady/mailshield",
+  "dependencies": {
+    "ip": "^0.3.0"
+  }
+}
