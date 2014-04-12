@@ -10,11 +10,10 @@ function LineIO(myconn) //inherits-from...
   var buffer='';
   var that=this;
   events.EventEmitter.call(this);
-  this.conn.on('readable',function () {
-    buffer+=that.conn.read();
-    var line_end;
-    var linecount=0;
-    while(buffer.indexOf("\r\n") !== -1) {
+  var linecount=0;
+  var line_end;
+  var line_emitter=function () {
+    if(buffer.indexOf("\r\n") !== -1) {
       linecount++;
       line_end=buffer.indexOf("\r\n");
       console.warn("FOUND line end at: "+line_end);
@@ -23,12 +22,15 @@ function LineIO(myconn) //inherits-from...
       that.emit('line',chunk_to_emit);
       buffer=buffer.slice(line_end+2); //skip past the \r\n
       console.warn("Remaining buffer: '"+buffer+"'");
+      process.nextTick(line_emitter);
       if(linecount>10) {
-        console.warn("TOO MANY LINES IN ONE PACKET!")
-        process.exit();
+        throw new Error("TOO MANY LINES IN ONE PACKET!")
       }
     }
-
+  };
+  this.conn.on('readable',function () {
+    buffer+=that.conn.read();
+    line_emitter();
   });
   this.conn.on('end',function () {
     that.emit("end");
