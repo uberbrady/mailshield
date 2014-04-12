@@ -97,12 +97,13 @@ IPstore.trim_db=function (entry_ip) {
 };
 
 IPstore.cleanup=function () {
+  console.warn("ITS CLEANUP TIME BABY!");
   for(var i in ips) {
     IPstore.trim_db(i);
   }
 };
 
-setInterval(IPstore.cleanup,cfg.delete_frequency);
+setInterval(IPstore.cleanup,cfg.ip.delete_frequency*1000);
 
 //YES, these are WEIRD CLASS METHODS
 IPstore.lookup=function (lookup_ip) {

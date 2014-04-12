@@ -48,13 +48,16 @@ if(env.SOURCE_ADDRESS) {
   server_connect_blob.localAddress= env.SOURCE_ADDRESS
 }
 
+process.on('SIGUSR2',function() {
+  IPstore.debug();
+});
+
 net.createServer(function (conn) {
   var remote_ip=conn.remoteAddress;
   remote_ip="127.0.0.2";
   var internal_lookup=IPstore.lookup(remote_ip);
   if(internal_lookup) {
     conn.end("YOU ARE IN BAD PLACE");
-    console.warn("IP DB: ",ips);
     return;
   }
 
@@ -98,7 +101,6 @@ net.createServer(function (conn) {
     }
     var internet=new LineIO(conn);
     internet.write("220 MailShield v"+VERSION+" - tread lightly");
-    console.warn("X is: ",x);
     IPstore.debug();
     var client=net.connect(server_connect_blob);
     client.on('error',function (err) {
