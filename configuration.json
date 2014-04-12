@@ -1,11 +1,8 @@
 {
   "_ip": "These are all IP-based limits: ",
   "ip": {
-    "delete_threshhold": 86400,
-    "_delete_threshhold": "That's in seconds, btw. Default of 1 day ought to work?",
-    "_delete_threshhold2": "Have to keep DB pruned or Bad Things Will Happen",
-    "delete_frequency": 1800,
-    "_delete_frequency": "run once very half-hour",
+    "blacklist_threshhold": 3600,
+    "_blacklist_threshhold": "How long it takes before you fall off the blacklist in-memory DB, in seconds",
 
     "bad_recipients": 10,
     "bad_recipients_threshhold": 3600,

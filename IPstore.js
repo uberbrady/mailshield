@@ -1,9 +1,6 @@
 
 var ip=require('ip');
 
-var ips={};
-
-var cfg=require('./configuration.json');
 //format:
 /*
 ips table
@@ -17,22 +14,13 @@ ips= {
 sample entry:
 entry= [
   js_datetime,
-  offensecode, //integer
   optional_stuff? //password hash?
 ]
 */
 
-var OFFENSES={
-  'BAD_RCPT': 1,
-  'BAD_AUTH': 2,
-  'GOOD_RCPT': 3,
-  'BLACKLIST': 4
-};
-
-
-
 /*
 Use 'binary search' algorithm to prune old entries in DB
+(And other things too)
 */
 
 /*
@@ -69,67 +57,80 @@ function binaryIndexOf(searchElement) {
           maxIndex = currentIndex - 1;
       }
       else {
+          console.warn("KEY FOUND at: "+currentIndex);
           return currentIndex;
       }
   }
-
+  console.warn("KEY WAS NEVER FOUND, but it *would* be at: "+currentIndex);
   return ~currentIndex;
 }
 // END THEFT!
 
-function IPstore()
+//duration in seconds.
+function IPstore(duration,count)
 {
-
+  if(!duration || duration < 60) {
+    throw new Error("Invalid duration for IPstore: "+duration);
+  }
+  if(!count) {
+    count=1;
+  }
+  this.duration=duration;
+  this.count=count;
+  this.ips={};
+  var that=this;
+  setInterval(function () {that.cleanup()},duration*1000/2);
 }
 
-IPstore.trim_db=function (entry_ip) {
+IPstore.prototype.trim_db=function (entry_ip,older_than) {
   lookup_long=ip.toLong(entry_ip);
-  var index=binaryIndexOf.call(ips[lookup_long],new Date()-cfg.delete_threshhold*1000);
-  //basically delete an index 'index' and anything greater. Right?
+  var index=binaryIndexOf.call(this.ips[lookup_long],older_than);
+  //basically delete an index 'index' and anything older. Right?
   if(index<0) { //if it wasn't found *exactly* (which is very likely!)
     index=~index; //then this is the index where it *would* be
   }
-  if(index === 0) { //first entry is that old? Blow out your whole hash entry.
-    delete ips[lookup_long];
-  } else if(index<ips.length){ //only if you have something to delete
-    ips[lookup_long]=ips[lookup_long].slice(0,index-1);
+  if(index>=this.ips.length) { //the oldest threshhold is the length of the entire array, blow it away
+    delete this.ips[lookup_long];
+  } else if(index>0){ //only if you have something to delete
+    this.ips[lookup_long]=this.ips[lookup_long].slice(index+1);
   }
 };
 
-IPstore.cleanup=function () {
+IPstore.prototype.cleanup=function () {
   console.warn("ITS CLEANUP TIME BABY!");
-  for(var i in ips) {
-    IPstore.trim_db(i);
+  for(var i in this.ips) {
+    this.trim_db(i,new Date() - this.duration);
   }
 };
 
-setInterval(IPstore.cleanup,cfg.ip.delete_frequency*1000);
-
-//YES, these are WEIRD CLASS METHODS
-IPstore.lookup=function (lookup_ip) {
-  return ips[ip.toLong(lookup_ip)]; //returns array of awkward crap :(
+IPstore.prototype.lookup=function (lookup_ip) {
+  var lookup_long=ip.toLong(lookup_ip);
+  var this_array=this.ips[lookup_long] || [];
+  var index=binaryIndexOf.call(this_array,this.duration);
+  if(index<0) {
+    index=~index;
+  }
+  console.warn("Arr len: "+this_array.length+" index: "+index+" required count: "+this.count);
+  return Math.floor(this_array.length-index)>this.count;
 };
 
-IPstore.store=function (addr,offense,opt) {
-  if(!OFFENSES[offense]) {
-    throw new Error("Unknown Offense: "+offense);
-  }
+IPstore.prototype.store=function (addr,opt) {
   var long=ip.toLong(addr);
   console.warn("IP: "+addr+" becomes: "+long);
-  if(!ips[long]) {
+  if(!this.ips[long]) {
     console.warn("No entry for "+addr+", so creating a new array..");
-    ips[long]=[];
+    this.ips[long]=[];
   }
-  ips[long].push([new Date(),OFFENSES[offense]]); //big(late) numbers at END
+  this.ips[long].push(new Date()); //big(late) numbers at END
   console.warn("FINE: I'm debugging the whole dmaned array");
-  console.warn(ips);
+  console.warn(this.ips);
 }
 
-IPstore.debug=function() {
+IPstore.prototype.debug=function() {
   console.warn("I AM DEBUGGIGINGIGNIN!");
-  for(var i in ips) {
+  for(var i in this.ips) {
     console.warn("I IS: "+i);
-    console.warn(ip.fromLong(i)+": "+ips[i].length+" entrie(s)");
+    console.warn(ip.fromLong(i)+": "+this.ips[i].length+" entrie(s)");
   }
 }
 

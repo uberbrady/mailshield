@@ -8,15 +8,20 @@ var net = require('net');
 var LineIO = require('./lineIO.js');
 var IPstore = require('./IPstore.js');
 
+var cfg = require ('./configuration.json');
+
+var blacklist = new IPstore(cfg.ip.blacklist_threshhold);
+var bad_recipient = new IPstore(cfg.ip.bad_recipients_threshhold,cfg.ip.bad_recipients);
+var mail_sends = new IPstore(cfg.ip.message_send_threshhold,cfg.ip.message_sends);
+
 /* config stuff */
-// telnet -b 10.177.135.184 173.203.205.61 25
 
 /* hey it's config */
 
 var ENVIRONMENTS= [
   'LISTEN_PORT',
   'LISTEN_ADDRESS',
-//  'SOURCE_ADDRESS',
+//  'SOURCE_ADDRESS', (optional)
   'MAIL_ADDRESS'
 ];
 
@@ -49,15 +54,36 @@ if(env.SOURCE_ADDRESS) {
 }
 
 process.on('SIGUSR2',function() {
-  IPstore.debug();
+  console.warn("BLACKLIST:");
+  blacklist.debug();
+  console.warn("Bad recips:");
+  bad_recipient.debug();
+  console.warn("Mail Sends:");
+  mail_sends.debug();
 });
 
 net.createServer(function (conn) {
   var remote_ip=conn.remoteAddress;
-  remote_ip="127.0.0.2";
-  var internal_lookup=IPstore.lookup(remote_ip);
+  var internet=new LineIO(conn);
+  //remote_ip="127.0.0.2";
+  var internal_lookup=blacklist.lookup(remote_ip);
+  var rejector=function (reason) {
+    internet.write("550 IP "+remote_ip+" is temporarily blocked because of "+reason);
+    internet.end(); //violation of RFC2821 section 3.1
+    console.log("MAIL BLOCKED FROM "+remote_ip+" due to: "+reason);
+  }
   if(internal_lookup) {
-    conn.end("YOU ARE IN BAD PLACE");
+    rejector("cached blacklist");
+    return;
+  }
+
+  if(bad_recipient.lookup(remote_ip)) {
+    rejector("excessive bad recipient attempts (cached)"); //"More than "+x+"bad recipient attempts in "+y+"seconds/minutes/hours"
+    return;
+  }
+
+  if(mail_sends.lookup(remote_ip)) {
+    rejector("Attempt to send extremely excessive amounts of mail");
     return;
   }
 
@@ -97,11 +123,12 @@ net.createServer(function (conn) {
     }
     console.warn("FINAL STATUS: PBL?: ",pbl," SBL-XBL?: ",sbl_xbl);
     if(sbl_xbl) {
-      IPstore.store(remote_ip,'BLACKLIST');
+      blacklist.store(remote_ip);
+      rejector("blacklist");
+      return;
     }
-    var internet=new LineIO(conn);
     internet.write("220 MailShield v"+VERSION+" - tread lightly");
-    IPstore.debug();
+    blacklist.debug();
     var client=net.connect(server_connect_blob);
     client.on('error',function (err) {
       console.warn("ERRRRRRRROOOOORRRRR: ",err);
@@ -124,11 +151,15 @@ net.createServer(function (conn) {
             console.warn("Reading in the results of RCPT TO:");
             if(line.match(/^5\d\d/)) {
               console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
-              IPstore.store(remote_ip,'BAD_RCPT');
+              bad_recipient.store(remote_ip,'BAD_RCPT');
+              if(bad_recipient.lookup(remote_ip)) {
+                rejector("excessive bad recipient attempts");
+                return;
+              }
             }
             if(line.match(/^2\d\d/)) {
               console.warn("GOOD RECIPIENT!!! Better note it still");
-              IPstore.store(remote_ip,'GOOD_RCPT');
+              mail_sends.store(remote_ip,'GOOD_RCPT');
             }
             mode=null; //reset mode back to null! done with recipients for now
             break;
