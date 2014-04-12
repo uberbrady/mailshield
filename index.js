@@ -11,9 +11,9 @@ var IPstore = require('./IPstore.js');
 var cfg = require ('./configuration.json');
 
 var blacklist = new IPstore(cfg.ip.blacklist_threshhold);
-var bad_recipient = new IPstore(cfg.ip.bad_recipients_threshhold,cfg.ip.bad_recipients);
+var bad_recipients = new IPstore(cfg.ip.bad_recipients_threshhold,cfg.ip.bad_recipients);
 var mail_sends = new IPstore(cfg.ip.message_send_threshhold,cfg.ip.message_sends);
-var bad_auth = new IPstore(cfg.ip.bad_auth_threshhold,cfg.ip.bad_auths);
+var bad_auths = new IPstore(cfg.ip.bad_auth_threshhold,cfg.ip.bad_auths);
 
 /* config stuff */
 
@@ -58,9 +58,11 @@ process.on('SIGUSR2',function() {
   console.warn("BLACKLIST:");
   blacklist.debug();
   console.warn("Bad recips:");
-  bad_recipient.debug();
+  bad_recipients.debug();
   console.warn("Mail Sends:");
   mail_sends.debug();
+  console.warn("Bad Auths:");
+  bad_auths.debug();
 });
 
 net.createServer(function (conn) {
@@ -70,7 +72,14 @@ net.createServer(function (conn) {
   var internal_lookup=blacklist.lookup(remote_ip);
   var rejector=function (reason) {
     internet.write("550 IP "+remote_ip+" is temporarily blocked because of "+reason);
-    internet.end(); //violation of RFC2821 section 3.1
+    internet.removeAllListeners('line');
+    internet.on('line',function (line) {
+      if(line === "QUIT") {
+        internet.end("221 Goodbye");
+      } else {
+        internet.write("503 bad sequence of commands");
+      }
+    });
     console.log("MAIL BLOCKED FROM "+remote_ip+" due to: "+reason);
   }
   if(internal_lookup) {
@@ -78,7 +87,7 @@ net.createServer(function (conn) {
     return;
   }
 
-  if(bad_recipient.lookup(remote_ip)) {
+  if(bad_recipients.lookup(remote_ip)) {
     rejector("excessive bad recipient attempts (cached)"); //"More than "+x+"bad recipient attempts in "+y+"seconds/minutes/hours"
     return;
   }
@@ -157,8 +166,8 @@ net.createServer(function (conn) {
               console.warn("Reading in the results of RCPT TO:");
               if(line.match(/^5\d\d/)) {
                 console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
-                bad_recipient.store(remote_ip);
-                if(bad_recipient.lookup(remote_ip)) {
+                bad_recipients.store(remote_ip);
+                if(bad_recipients.lookup(remote_ip)) {
                   rejector("excessive bad recipient attempts");
                   return;
                 }

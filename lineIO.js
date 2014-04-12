@@ -29,6 +29,7 @@ function LineIO(myconn) //inherits-from...
     }
   };
   this.conn.on('readable',function () {
+    linecount=0; //reset linecount!
     buffer+=that.conn.read();
     line_emitter();
   });
@@ -43,7 +44,8 @@ LineIO.prototype.write= function (line) {
   this.conn.write(line+"\r\n");
 };
 
-LineIO.prototype.end=function () {
+LineIO.prototype.end=function (optional) {
+  this.write(optional);
   this.conn.end();
 };
 
