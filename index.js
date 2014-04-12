@@ -1,5 +1,4 @@
 "use strict";
-var ip=require('ip');
 var net=require('net');
 var dns=require('dns');
 var events=require('events');
@@ -7,6 +6,7 @@ var EventEmitter=events.EventEmitter;
 var net = require('net');
 
 var LineIO = require('./lineIO.js');
+var IPstore = require('./IPstore.js');
 
 /* config stuff */
 // telnet -b 10.177.135.184 173.203.205.61 25
@@ -16,7 +16,7 @@ var LineIO = require('./lineIO.js');
 var ENVIRONMENTS= [
   'LISTEN_PORT',
   'LISTEN_ADDRESS',
-  'SOURCE_ADDRESS',
+//  'SOURCE_ADDRESS',
   'MAIL_ADDRESS'
 ];
 
@@ -39,21 +39,19 @@ var spamhaus={
   "127.0.0.11":["PBL",	"Spamhaus Maintained"]
 };
 
-var ips={};
-//format:
-/*
-ips= {
-  //the key is a ip-to-long #
-  123445677: [last_bad_Datetime, count?, ]
+var server_connect_blob={
+  host: env.MAIL_ADDRESS,
+  port: 25,
+};
+
+if(env.SOURCE_ADDRESS) {
+  server_connect_blob.localAddress= env.SOURCE_ADDRESS
 }
-*/
 
 net.createServer(function (conn) {
   var remote_ip=conn.remoteAddress;
-  remote_ip="127.0.0.2"; // or '1' - or whatever you like
-  remote_ip="0.0.0.1";
-  //internal IP lookup
-  var internal_lookup=ips[ip.toLong(remote_ip)];
+  remote_ip="127.0.0.2";
+  var internal_lookup=IPstore.lookup(remote_ip);
   if(internal_lookup) {
     conn.end("YOU ARE IN BAD PLACE");
     console.warn("IP DB: ",ips);
@@ -96,28 +94,51 @@ net.createServer(function (conn) {
     }
     console.warn("FINAL STATUS: PBL?: ",pbl," SBL-XBL?: ",sbl_xbl);
     if(sbl_xbl) {
-      ips[ip.toLong(remote_ip)]=[new Date(),"poop"];
+      IPstore.store(remote_ip,'BLACKLIST');
     }
     var internet=new LineIO(conn);
     internet.write("220 MailShield v"+VERSION+" - tread lightly");
-    var client=net.connect({
-      host: env.MAIL_ADDRESS,
-      port: 25,
-      localAddress: "192.168.72.241"// "localhost"//"127.0.0.1" //env.SOURCE_ADDRESS
-    });
+    console.warn("X is: ",x);
+    IPstore.debug();
+    var client=net.connect(server_connect_blob);
     client.on('error',function (err) {
       console.warn("ERRRRRRRROOOOORRRRR: ",err);
     });
     client.on('connect',function () {
+      client.on('end',function () {
+        internet.end();
+      });
+      internet.on('end',function () {
+        client.end();
+      })
       var server=new LineIO(client);
       server.once('line',function (throwaway) {
+        var mode=null;
         console.warn("Here's the server's welcome line: "+throwaway);
         server.on('line',function (line) {
           console.warn("READING IN: "+line);
+          switch(mode) {
+            case "RCPT":
+            console.warn("Reading in the results of RCPT TO:");
+            if(line.match(/^5\d\d/)) {
+              console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
+              IPstore.store(remote_ip,'BAD_RCPT');
+            }
+            if(line.match(/^2\d\d/)) {
+              console.warn("GOOD RECIPIENT!!! Better note it still");
+              IPstore.store(remote_ip,'GOOD_RCPT');
+            }
+            mode=null; //reset mode back to null! done with recipients for now
+            break;
+          }
           internet.write(line);
         });
         internet.on('line',function (line) {
           console.warn("ABOUT TO SEND OUT: "+line);
+          if(line.match(/^RCPT TO/)) {
+            console.warn("RCPT TO MODE ENGAGED!");
+            mode="RCPT";
+          }
           server.write(line);
         });
       });

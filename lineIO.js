@@ -30,12 +30,19 @@ function LineIO(myconn) //inherits-from...
     }
 
   });
+  this.conn.on('end',function () {
+    that.emit("end");
+  });
 }
 
 util.inherits(LineIO, events.EventEmitter);
 
 LineIO.prototype.write= function (line) {
   this.conn.write(line+"\r\n");
+};
+
+LineIO.prototype.end=function () {
+  this.conn.end();
 };
 
 module.exports=LineIO;

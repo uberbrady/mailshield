@@ -1,0 +1,18 @@
+{
+  "_ip": "These are all IP-based limits: ",
+  "ip": {
+    "delete_threshhold": 86400,
+    "_delete_threshhold": "That's in seconds, btw. Default of 1 day ought to work?",
+    "_delete_threshhold2": "Have to keep DB pruned or Bad Things Will Happen",
+    "delete_frequency": 1800,
+    "_delete_frequency": "run once very half-hour",
+
+    "bad_recipients": 10,
+    "bad_recipients_threshhold": 3600,
+    "_bad_recipients": "So that's 10 bad RCPT TO's in an hour by default.",
+
+    "message_sends": 10000,
+    "message_send_threshhold": 86400,
+    "_message_sends": "That works out to be 10000 _valid_ sends per day. I'm fine with that."
+  }
+}
