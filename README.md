@@ -1,15 +1,15 @@
+WARNING
+-------
+
+This is **ALPHA** quality software, if that. It will eat your mail. It will set fire to your computers. It will 
+destroy the entire internet. Or...it may just slow down spammers and keep some load off of your server.
+
 mailshield
 ==========
 
 SMTP proxy for defending mailservers
 
 Affero-GPL-v3 licensed.
-
-WARNING
--------
-
-This is **ALPHA** quality software, if that. It will eat your mail. It will set fire to your computers. It will 
-destroy the entire internet. Or...it may just slow down spammers and keep some load off of your server.
 
 mailshield is designed to protect mailservers from common attacks. It implements a Spamhaus ZEN blacklist lookup
 (and correctly interprets sbl-xbl vs. pbl listings). It also implements several throttles to common attacks seen
@@ -69,3 +69,6 @@ As mailshield continues to gain functionality, it may evolve into a full-fledged
 ones used by postfix, qmail, sendmail, and the like. Those servers could still provide 'local delivery' while leaving
 the SMTP to mailshield.
 
+IMAP allows dictionary attacks; I'd like to protect that too someday. Maybe just introspect on the various authentication commands, and leave the rest alone. Oh, and maybe get involved with IDLE (blocking in some cases? Not sure. It eats up resources on my server and I can't stop it :()
+
+I'd like to see it handle SSL connections too. Then you don't have to run big dual stacks of servers to listen to SSL on one side and non-SSL on the other.
