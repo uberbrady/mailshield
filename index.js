@@ -13,6 +13,7 @@ var cfg = require ('./configuration.json');
 var blacklist = new IPstore(cfg.ip.blacklist_threshhold);
 var bad_recipient = new IPstore(cfg.ip.bad_recipients_threshhold,cfg.ip.bad_recipients);
 var mail_sends = new IPstore(cfg.ip.message_send_threshhold,cfg.ip.message_sends);
+var bad_auth = new IPstore(cfg.ip.bad_auth_threshhold,cfg.ip.bad_auths);
 
 /* config stuff */
 
@@ -87,6 +88,10 @@ net.createServer(function (conn) {
     return;
   }
 
+  if(bad_auths.lookup(remote_ip)) {
+    rejector("authentication fails");
+    return;
+  }
 
   //Spamhaus Lookup
   var octets=remote_ip.split(".");
@@ -143,35 +148,59 @@ net.createServer(function (conn) {
       var server=new LineIO(client);
       server.once('line',function (throwaway) {
         var mode=null;
+        var authed=false;
         console.warn("Here's the server's welcome line: "+throwaway);
         server.on('line',function (line) {
           console.warn("READING IN: "+line);
           switch(mode) {
             case "RCPT":
-            console.warn("Reading in the results of RCPT TO:");
-            if(line.match(/^5\d\d/)) {
-              console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
-              bad_recipient.store(remote_ip,'BAD_RCPT');
-              if(bad_recipient.lookup(remote_ip)) {
-                rejector("excessive bad recipient attempts");
-                return;
+              console.warn("Reading in the results of RCPT TO:");
+              if(line.match(/^5\d\d/)) {
+                console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
+                bad_recipient.store(remote_ip);
+                if(bad_recipient.lookup(remote_ip)) {
+                  rejector("excessive bad recipient attempts");
+                  return;
+                }
               }
-            }
-            if(line.match(/^2\d\d/)) {
-              console.warn("GOOD RECIPIENT!!! Better note it still");
-              mail_sends.store(remote_ip,'GOOD_RCPT');
-            }
-            mode=null; //reset mode back to null! done with recipients for now
-            break;
+              if(line.match(/^2\d\d/)) {
+                console.warn("GOOD RECIPIENT!!! Better note it still");
+                mail_sends.store(remote_ip,'GOOD_RCPT');
+              }
+              mode=null; //reset mode back to null! done with recipients for now
+              break;
+
+            case "AUTH":
+              if(line.match(/^5\d\d/)) {
+                bad_auths.store(remote_ip);
+                if(bad_auths.lookup(remote_ip)) {
+                  rejector("authentication fails");
+                  return;
+                } else if(line.match(/^2\d\d/)) {
+                  authed=true;
+                }
+              }
+              mode=null;
+              break;
           }
           internet.write(line);
         });
         internet.on('line',function (line) {
           console.warn("ABOUT TO SEND OUT: "+line);
           if(line.match(/^RCPT TO/)) {
-            console.warn("RCPT TO MODE ENGAGED!");
+            if(pbl && !authed) {
+              internet.write("530 5.7.0 Authentication required");
+              return;
+            }
             mode="RCPT";
           }
+          if(line.match(/^AUTH/)) {
+            mode="AUTH";
+          }
+          if(line.match(/^DATA/) && pbl && !authed) {
+            internet.write("")
+          }
+          console.warn("Engaging Mode: "+mode);
           server.write(line);
         });
       });

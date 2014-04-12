@@ -10,6 +10,9 @@
 
     "message_sends": 10000,
     "message_send_threshhold": 86400,
-    "_message_sends": "That works out to be 10000 _valid_ sends per day. I'm fine with that."
+    "_message_sends": "That works out to be 10000 _valid_ sends per day. I'm fine with that.",
+
+    "bad_auths": 10,
+    "bad_auth_threshhold": 3600
   }
 }
