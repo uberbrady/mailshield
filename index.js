@@ -10,6 +10,8 @@ var IPstore = require('./IPstore.js');
 
 var cfg = require ('./configuration.json');
 
+var safety = require ('./safety.js');
+
 var blacklist = new IPstore(cfg.ip.blacklist_threshhold);
 var bad_recipients = new IPstore(cfg.ip.bad_recipients_threshhold,cfg.ip.bad_recipients);
 var mail_sends = new IPstore(cfg.ip.message_send_threshhold,cfg.ip.message_sends);
@@ -141,76 +143,92 @@ net.createServer(function (conn) {
       rejector("blacklist");
       return;
     }
-    internet.write("220 MailShield v"+VERSION+" - tread lightly");
-    blacklist.debug();
-    var client=net.connect(server_connect_blob);
-    client.on('error',function (err) {
-      console.warn("ERRRRRRRROOOOORRRRR: ",err);
-    });
-    client.on('connect',function () {
-      client.on('end',function () {
-        internet.end();
+    internet.write("220 MailShield v"+VERSION+" - tread lightly",function () {
+      blacklist.debug();
+      var client=net.connect(server_connect_blob);
+      client.on('error',function (err) {
+        console.warn("ERRRRRRRROOOOORRRRR: ",err);
       });
-      internet.on('end',function () {
-        client.end();
-      })
-      var server=new LineIO(client);
-      server.once('line',function (throwaway) {
-        var mode=null;
-        var authed=false;
-        console.warn("Here's the server's welcome line: "+throwaway);
-        server.on('line',function (line) {
-          console.warn("READING IN: "+line);
-          switch(mode) {
-            case "RCPT":
-              console.warn("Reading in the results of RCPT TO:");
-              if(line.match(/^5\d\d/)) {
-                console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME SHIT!");
-                bad_recipients.store(remote_ip);
-                if(bad_recipients.lookup(remote_ip)) {
-                  rejector("excessive bad recipient attempts");
-                  return;
-                }
-              }
-              if(line.match(/^2\d\d/)) {
-                console.warn("GOOD RECIPIENT!!! Better note it still");
-                mail_sends.store(remote_ip,'GOOD_RCPT');
-              }
-              mode=null; //reset mode back to null! done with recipients for now
-              break;
-
-            case "AUTH":
-              if(line.match(/^5\d\d/)) {
-                bad_auths.store(remote_ip);
-                if(bad_auths.lookup(remote_ip)) {
-                  rejector("authentication fails");
-                  return;
-                } else if(line.match(/^2\d\d/)) {
-                  authed=true;
-                }
-              }
-              mode=null;
-              break;
-          }
-          internet.write(line);
+      client.on('connect',function () {
+        client.on('end',function () {
+          internet.end();
         });
-        internet.on('line',function (line) {
-          console.warn("ABOUT TO SEND OUT: "+line);
-          if(line.match(/^RCPT TO/)) {
-            if(pbl && !authed) {
-              internet.write("530 5.7.0 Authentication required");
-              return;
+        internet.on('end',function () {
+          client.end();
+        });
+        internet.on('error',function (err) {
+          internet.end();
+        });
+        var server=new LineIO(client);
+        server.once('line',function (throwaway) {
+          var mode=null;
+          var authed=false;
+          console.warn("Here's the server's welcome line: "+throwaway);
+          internet.on('error',function (err) {
+            switch(err.name) {
+              case "LengthError":
+                internet.write("500 Line too long.")
+                break;
+
+              default:
+                internet.write("500 Unknown Error: "+err.name);
             }
-            mode="RCPT";
-          }
-          if(line.match(/^AUTH/)) {
-            mode="AUTH";
-          }
-          if(line.match(/^DATA/) && pbl && !authed) {
-            internet.write("")
-          }
-          console.warn("Engaging Mode: "+mode);
-          server.write(line);
+          });
+          var readwriteline=function() {
+            console.warn("Readwriteline invoked?")
+            internet.once('line',function (line) {
+              console.warn("ABOUT TO SEND OUT: "+line);
+              if(line.match(/^RCPT TO/)) {
+                if(pbl && !authed) {
+                  internet.write("530 5.7.0 Authentication required");
+                  return;
+                }
+                mode="RCPT";
+              }
+              if(line.match(/^AUTH/)) {
+                mode="AUTH";
+              }
+              console.warn("Engaging Mode: "+mode);
+              server.write(line,function () {
+                server.once('line',function (line) {
+                  console.warn("READING FROM REAL SERVER: "+line);
+                  switch(mode) {
+                    case "RCPT":
+                      console.warn("Reading in the results of RCPT TO:");
+                      if(line.match(/^5\d\d/)) {
+                        console.warn("BAD RECIPIENT!!!! TIME TO BREAK SOME STUFF!");
+                        bad_recipients.store(remote_ip);
+                        if(bad_recipients.lookup(remote_ip)) {
+                          rejector("excessive bad recipient attempts");
+                          return;
+                        }
+                      }
+                      if(line.match(/^2\d\d/)) {
+                        console.warn("GOOD RECIPIENT!!! Better note it still");
+                        mail_sends.store(remote_ip);
+                      }
+                      mode=null; //reset mode back to null! done with recipients for now
+                      break;
+
+                    case "AUTH":
+                      if(line.match(/^5\d\d/)) {
+                        bad_auths.store(remote_ip);
+                        if(bad_auths.lookup(remote_ip)) {
+                          rejector("authentication fails");
+                          return;
+                        } else if(line.match(/^2\d\d/)) {
+                          authed=true;
+                        }
+                      }
+                      mode=null;
+                      break;
+                  }
+                  internet.write(line,readwriteline);
+                });
+              });
+            });
+          };
+          readwriteline();
         });
       });
     });

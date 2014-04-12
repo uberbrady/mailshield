@@ -127,9 +127,7 @@ IPstore.prototype.store=function (addr,opt) {
 }
 
 IPstore.prototype.debug=function() {
-  console.warn("I AM DEBUGGIGINGIGNIN!");
   for(var i in this.ips) {
-    console.warn("I IS: "+i);
     console.warn(ip.fromLong(i)+": "+this.ips[i].length+" entrie(s)");
   }
 }
