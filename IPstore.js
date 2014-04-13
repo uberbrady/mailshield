@@ -27,6 +27,7 @@ Use 'binary search' algorithm to prune old entries in DB
 SHAMELESSLY STOLEN FROM:
 http://oli.me.uk/2013/06/08/searching-javascript-arrays-with-a-binary-search/
 THANK YOU!!!
+(Heavily mangled as per the comments!)
 */
 // BEGIN THEFT -
 /**
@@ -38,7 +39,7 @@ THANK YOU!!!
  * @return {Number} The index of the element which defaults to -1 when not found.
  */
 
-function binaryIndexOf(searchElement) {
+IPstore.binaryIndexOf=function (searchElement) {
   'use strict';
 
   var minIndex = 0;
@@ -46,49 +47,56 @@ function binaryIndexOf(searchElement) {
   var currentIndex;
   var currentElement;
 
-  while (minIndex <= maxIndex) {
-      currentIndex = (minIndex + maxIndex) / 2 | 0;
-      currentElement = this[currentIndex];
+  console.warn("WE ARE LOOKING FOR: ",searchElement,"AKA",+searchElement);
 
-      if (currentElement < searchElement) {
-          minIndex = currentIndex + 1;
-      }
-      else if (currentElement > searchElement) {
-          maxIndex = currentIndex - 1;
-      }
-      else {
-          console.warn("KEY FOUND at: "+currentIndex);
-          return currentIndex;
-      }
+  var circuitbreaker=0;
+  while (minIndex <= maxIndex) {
+    circuitbreaker++;
+    currentIndex = (minIndex + maxIndex) >>1;
+    currentElement = this[currentIndex];
+    console.warn("minIndex: "+minIndex+" maxIndex: "+maxIndex+" currentIndex: "+currentIndex+" currentElement: "+currentElement);
+
+    if (currentElement < searchElement) {
+      minIndex = currentIndex+1;
+    }
+    else if (currentElement > searchElement) {
+      maxIndex = currentIndex-1;
+    }
+    else {
+      console.warn("KEY FOUND at: "+currentIndex);
+      return currentIndex;
+    }
+    if(circuitbreaker>32) {
+      console.warn("ERROR. circuitbreaker is: "+circuitbreaker);
+      break;
+    }
   }
-  console.warn("KEY WAS NEVER FOUND, but it *would* be at: "+currentIndex);
-  return ~currentIndex;
+  console.warn("KEY WAS NEVER FOUND, but it *would* be at: "+currentIndex+" min: "+minIndex+" max: "+maxIndex+". We found: "+currentElement+" at that index, and are looking for "+searchElement);
+  return ~Math.max(minIndex,maxIndex);
 }
 // END THEFT!
 
 //duration in seconds.
 function IPstore(duration,count)
 {
-  if(!duration || duration < 60) {
+  console.warn("argv[0]: ",process.argv[2]);
+  if(!process.argv[1].match(/mocha/) && (!duration || duration < 60)) {
     throw new Error("Invalid duration for IPstore: "+duration);
   }
   if(!count) {
     count=1;
   }
-  this.duration=duration;
+  this.duration=duration*1000;
   this.count=count;
   this.ips={};
   var that=this;
-  setInterval(function () {that.cleanup()},duration*1000/2);
+  setInterval(function () {that.cleanup()},this.duration/2);
 }
 
-IPstore.prototype.trim_db=function (entry_ip,older_than) {
+IPstore.prototype.trim_db=function (entry_ip) {
   lookup_long=ip.toLong(entry_ip);
-  var index=binaryIndexOf.call(this.ips[lookup_long],older_than);
+  var index=this.find_index(entry_ip);
   //basically delete an index 'index' and anything older. Right?
-  if(index<0) { //if it wasn't found *exactly* (which is very likely!)
-    index=~index; //then this is the index where it *would* be
-  }
   if(index>=this.ips.length) { //the oldest threshhold is the length of the entire array, blow it away
     delete this.ips[lookup_long];
   } else if(index>0){ //only if you have something to delete
@@ -98,20 +106,32 @@ IPstore.prototype.trim_db=function (entry_ip,older_than) {
 
 IPstore.prototype.cleanup=function () {
   console.warn("ITS CLEANUP TIME BABY!");
+  console.warn("IPs are: ",this.ips);
+  console.warn("so duration ought to be: "+new Date(new Date() - this.duration));
   for(var i in this.ips) {
-    this.trim_db(i,new Date() - this.duration);
+    this.trim_db(ip.fromLong(i));
+  }
+};
+
+IPstore.prototype.find_index=function(lookup_ip) {
+  var index=IPstore.binaryIndexOf.call(this.ips[ip.toLong(lookup_ip)],new Date(new Date() - this.duration));
+  console.log("I FOUND index: "+index+" ("+~index+") out of "+this.ips[ip.toLong(lookup_ip)].length);
+  if(index<0) {
+    return ~index;
+  } else {
+    return index;
   }
 };
 
 IPstore.prototype.lookup=function (lookup_ip) {
   var lookup_long=ip.toLong(lookup_ip);
   var this_array=this.ips[lookup_long] || [];
-  var index=binaryIndexOf.call(this_array,this.duration);
+  var index=this.find_index(lookup_ip);
   if(index<0) {
     index=~index;
   }
   console.warn("Arr len: "+this_array.length+" index: "+index+" required count: "+this.count);
-  return Math.floor(this_array.length-index)>this.count;
+  return Math.floor(this_array.length-index)>=this.count;
 };
 
 IPstore.prototype.store=function (addr,opt) {
@@ -123,13 +143,17 @@ IPstore.prototype.store=function (addr,opt) {
   }
   this.ips[long].push(new Date()); //big(late) numbers at END
   console.warn("FINE: I'm debugging the whole dmaned array");
-  console.warn(this.ips);
+  this.debug();
 }
 
 IPstore.prototype.debug=function() {
   for(var i in this.ips) {
     console.warn(ip.fromLong(i)+": "+this.ips[i].length+" entrie(s)");
+    for(var j in this.ips[i]) {
+      console.warn("[",j,"]: ",this.ips[i][j],+this.ips[i][j]);
+    }
   }
+  console.warn("");
 }
 
 module.exports=IPstore;
