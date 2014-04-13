@@ -11,6 +11,8 @@ SMTP proxy for defending mailservers
 
 Affero-GPL-v3 licensed.
 
+The [mailshield wiki](../../wiki) has documentation
+
 mailshield is designed to protect mailservers from common attacks. It implements a Spamhaus ZEN blacklist lookup
 (and correctly interprets sbl-xbl vs. pbl listings). It also implements several throttles to common attacks seen
 on the internet - dictionary attack prevention for usernames (invalid RCPT TO's), excessive SMTP authentication failure
