@@ -68,7 +68,7 @@ process.on('SIGUSR2',function() {
 });
 
 net.createServer(function (internet_conn) {
-  var remote_ip=conn.remoteAddress;
+  var remote_ip=internet_conn.remoteAddress;
   var internet=new LineIO(internet_conn);
   //remote_ip="127.0.0.2";
   var internal_lookup=blacklist.lookup(remote_ip);
@@ -160,22 +160,19 @@ net.createServer(function (internet_conn) {
           server.end();
         });
         internet.on('error',function (err) {
-          internet.end();
+          switch(err.name) {
+            case "LengthError":
+              internet.write("500 Line too long.")
+              break;
+
+            default:
+              internet.write("500 Unknown Error: "+err.name);
+          }
         });
-        server.once('line',function (throwaway) {
+        var startline=function (throwaway) {
           var mode=null;
           var authed=false;
           console.warn("Here's the server's welcome line: "+throwaway);
-          internet.on('error',function (err) {
-            switch(err.name) {
-              case "LengthError":
-                internet.write("500 Line too long.")
-                break;
-
-              default:
-                internet.write("500 Unknown Error: "+err.name);
-            }
-          });
           var readwriteline=function() {
             console.warn("Readwriteline invoked?")
             internet.once('line',function (line) {
@@ -233,8 +230,23 @@ net.createServer(function (internet_conn) {
               });
             });
           };
-          readwriteline();
-        });
+          internet.once('line',function (greeting) {
+            if(greeting.match(/^EHLO/)) {
+              internet.write("500 Extended Hello Function not supported yet; use HELO",function () {
+                startline("Retrying from failed EHLO greeting...");
+              });
+            } else if(greeting.match(/^HELO/)) {
+              server.write(greeting,function () {
+                server.once('line',function (line) {
+                  internet.write(line,function () {
+                    readwriteline();
+                  })
+                })
+              });
+            }
+          })
+        };
+        server.once('line',startline);
       });
     });
   });

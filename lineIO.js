@@ -54,6 +54,8 @@ function LineIO(myconn) //inherits-from...
   };
   var activated=false;
 
+  this.remoteAddress=this.conn.remoteAddress;
+
   this.on('newListener',function (name) {
     if(name=="line") {
       console.warn("New line listener found! PRevious activation status: "+activated);
