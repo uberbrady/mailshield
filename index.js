@@ -190,6 +190,9 @@ net.createServer(function (internet_conn) {
               if(line.match(/^AUTH/)) {
                 mode="AUTH";
               }
+              if(line.match(/^DATA$/)) {
+                mode="DATA";
+              }
               console.warn("Engaging Mode: "+mode);
               server.write(line,function () {
                 server.once('line',function (line) {
@@ -223,6 +226,31 @@ net.createServer(function (internet_conn) {
                         }
                       }
                       mode=null;
+                      break;
+
+                    case "DATA":
+                      console.warn("RETURNING FOR DATA MODE!");
+                      var datamode=function () {
+                        console.warn("Continuing Data Mode");
+                        internet.once('line',function (line) {
+                          console.warn("INTERNET LINE IS: '"+line+"'");
+                          if(line === ".") {
+                            console.warn("LINE IS: '"+line+"' - ");
+                            server.write(line,function () {
+                              server.once('line',function (line) {
+                                console.warn("Line from server is: "+line);
+                                internet.write(line,readwriteline);
+                              });
+                            });
+                          } else {
+                            server.write(line,datamode);
+                          }
+                        });
+                      };
+                      internet.write(line,function () {
+                        datamode();
+                      });
+                      return;
                       break;
                   }
                   internet.write(line,readwriteline);
