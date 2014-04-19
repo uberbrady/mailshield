@@ -67,9 +67,9 @@ process.on('SIGUSR2',function() {
   bad_auths.debug();
 });
 
-net.createServer(function (conn) {
+net.createServer(function (internet_conn) {
   var remote_ip=conn.remoteAddress;
-  var internet=new LineIO(conn);
+  var internet=new LineIO(internet_conn);
   //remote_ip="127.0.0.2";
   var internal_lookup=blacklist.lookup(remote_ip);
   var rejector=function (reason) {
@@ -145,22 +145,23 @@ net.createServer(function (conn) {
     }
     internet.write("220 MailShield v"+VERSION+" - tread lightly",function () {
       blacklist.debug();
-      var client=net.connect(server_connect_blob);
-      client.on('error',function (err) {
+      var server=new LineIO(net.connect(server_connect_blob));
+      server.on('error',function (err) {
         console.warn("ERRRRRRRROOOOORRRRR: ",err);
+        server.end();
+
       });
-      client.on('connect',function () {
-        client.on('end',function () {
+      server.on('connect',function () {
+        server.on('end',function () {
           console.warn("The mailserver has closed the connection, so we will too.");
           internet.end();
         });
         internet.on('end',function () {
-          client.end();
+          server.end();
         });
         internet.on('error',function (err) {
           internet.end();
         });
-        var server=new LineIO(client);
         server.once('line',function (throwaway) {
           var mode=null;
           var authed=false;

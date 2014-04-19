@@ -90,7 +90,10 @@ function LineIO(myconn) //inherits-from...
   });
   this.conn.on('error',function (err) {
     that.emit("error",err);
-  })
+  });
+  this.conn.on('connect',function () {
+    that.emit("connect");
+  });
 }
 
 util.inherits(LineIO, events.EventEmitter);
