@@ -151,6 +151,7 @@ net.createServer(function (conn) {
       });
       client.on('connect',function () {
         client.on('end',function () {
+          console.warn("The mailserver has closed the connection, so we will too.");
           internet.end();
         });
         internet.on('end',function () {
@@ -180,10 +181,13 @@ net.createServer(function (conn) {
               console.warn("ABOUT TO SEND OUT: "+line);
               if(line.match(/^RCPT TO/)) {
                 if(pbl && !authed) {
+                  console.log("IP:",remote_ip,"Blocked by PBL and unauthenticated access requested");
                   internet.write("530 5.7.0 Authentication required");
+                  readwriteline();
                   return;
+                } else {
+                  mode="RCPT";
                 }
-                mode="RCPT";
               }
               if(line.match(/^AUTH/)) {
                 mode="AUTH";

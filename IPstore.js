@@ -126,6 +126,9 @@ IPstore.prototype.find_index=function(lookup_ip) {
 IPstore.prototype.lookup=function (lookup_ip) {
   var lookup_long=ip.toLong(lookup_ip);
   var this_array=this.ips[lookup_long] || [];
+  if(!this_array || this_array.length === 0) {
+    return false;
+  }
   var index=this.find_index(lookup_ip);
   if(index<0) {
     index=~index;
