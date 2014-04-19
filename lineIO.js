@@ -35,8 +35,8 @@ function LineIO(myconn) //inherits-from...
       }
       buffer=buffer.slice(line_end+2); //skip past the \r\n
       console.warn("Remaining buffer: '"+buffer+"'");
-      if(linecount>10) {
-        throw new Error("TOO MANY LINES IN ONE PACKET!")
+      if(linecount>100000) {
+        throw new Error("TOO MANY LINES IN ONE PACKET! ("+linecount+")");
       }
       process.nextTick(line_emitter);
     } else {
