@@ -230,6 +230,18 @@ net.createServer(function (internet_conn) {
 
                     case "DATA":
                       console.warn("RETURNING FOR DATA MODE!");
+                      internet.on('line',function(line) {
+                        server.write(line);
+                      });
+                      server.on('line',function(line) {
+                        internet.write(line);
+                        //HOW do we know that the line emission is done?
+                        //I don't know. Do we even have to know?
+                        server.removeAllListeners('line');
+                        internet.removeAllListeners('line');
+                        readwriteline();
+                      })
+                      /*
                       var datamode=function () {
                         console.warn("Continuing Data Mode");
                         internet.once('line',function (line) {
@@ -249,7 +261,7 @@ net.createServer(function (internet_conn) {
                       };
                       internet.write(line,function () {
                         datamode();
-                      });
+                      });*/
                       return;
                       break;
                   }
